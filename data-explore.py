@@ -1,71 +1,91 @@
-from matplotlib.pyplot import legend
-from pyecharts import options
-from pyecharts.charts import Bar,Line,Grid,Pie
-from pyecharts.globals import ThemeType
-from pyecharts.options import *
-from 数据预处理 import *
-bar = Bar()
-line = Line()
-bar_x_list = name_list
-bar_y_list = quantity
-bar.add_xaxis(bar_x_list)
-bar.add_yaxis('top10交易金额的商品的交易数量(万)',bar_y_list,yaxis_index=0)
-bar.extend_axis()
-bar.set_global_opts(
-    xaxis_opts=AxisOpts(
-        axislabel_opts=LabelOpts(
-            interval=0,
-            is_show=True,
-            font_size=12,
-            rotate=20,
-            text_width=6,
-            overflow="truncate"),
-    ),
-    title_opts=TitleOpts(title="新疆对哈萨克斯坦交易金额出口数据分析"),
-    toolbox_opts=ToolboxOpts(is_show=True),
-    legend_opts=LegendOpts(is_show=True,pos_left="50%",pos_top="5%"),
+import pandas as pd
+import pymysql
+from my_opts import *
+# 连接数据库
+coon = pymysql.connect(
+    host = 'localhost',
+    user = 'root',
+    passwd = '123456',
+    database='xjnd',
+    charset = 'utf8',
+    port = 3306
 )
-grid = Grid(init_opts=InitOpts(width="1200px",height="700px",theme=ThemeType.MACARONS))
-grid.add(bar, grid_opts=GridOpts(pos_left="50%", pos_right="0%"))
 
-line_y_list = total
-line.add_xaxis(bar_x_list)
-line.add_yaxis('top10交易金额的商品的交易金额(万)',line_y_list,yaxis_index=1)
-line.set_global_opts(
-    xaxis_opts=AxisOpts(axislabel_opts=LabelOpts(
-            interval=0,
-            is_show=False,
-            font_size=12,
-            rotate=20,
-            text_width=6,
-            overflow="truncate")),
-    yaxis_opts=AxisOpts(
-        name='交易数量',
-        position='right',
-        is_show=True
-    ),
-    legend_opts=LegendOpts(is_show=True,pos_left="70%",pos_top="5%"),
-)
-grid.add(line, grid_opts=GridOpts(pos_left="50%", pos_right="0%"))
+#=========验证数据===========
+# 提取信息
+curses = coon.cursor()
+curses.execute('use xjnd')
+curses.execute('select `商品名称`,`第一数量`,`人民币` from wzbk')
+raw_trade = curses.fetchall()
+coon.close()
 
+#转换成dataframe
+df_trade = pd.DataFrame(raw_trade,columns=['商品名称','数量','交易额'])
+# print(df_trade.head(),df_trade.info(),df_trade.shape)
+# 2 交易额 127 non - null object         交易额是object单独处理
 
+# 正则剔除
+df_trade['交易额'] = df_trade['交易额'].str.strip().str.replace(r'\D','',regex=True).astype('int64')
 
-pie = Pie(init_opts=InitOpts(theme=ThemeType.MACARONS))
-pie.add('top10交易金额的商品内部占比',
-        [i for i in zip(bar_x_list, proportion_list)],
-         center=['20%','40%'],
-        radius=["40%","60%"],
-        label_opts=LabelOpts(
-            interval=0,
-            is_show=True,
-            font_size=12,
-            formatter='{b}:{c}%',
-            position="outer"
-        ),
-)
-pie.set_global_opts(
-        legend_opts=LegendOpts(type_="scroll", pos_left="35%", pos_bottom='10%',orient="vertical"),
-    )
+# 十个月数据统计
+df_data = df_trade.groupby('商品名称').agg({'数量':'sum','交易额':'sum'}).reset_index()
 
-grid.add(pie,grid_opts=GridOpts())
-grid.render("新疆对哈萨克斯坦交易金额出口数据分析.html")
+# 未知数据分布用iqr
+# print(iqr_false(df_data,"数量",1.5,3))
+
+# 数量非iqr内商品一一核对数量
+# 商品名称        数量        交易额
+# 9                             低值简易通关商品  20144928  228605989
+# 16                               其他干绿豆   1510500    9648019
+# 17                              其他干鹰嘴豆    228850    1491424
+# 21                              其他未锻轧铅    271086    3457875
+# 31                    其他苷及其盐、醚、酯和其他衍生物    523079   24088861
+# 36                               其他鲜甜瓜    118700     278432
+# 43                            华夫饼干及圣餐饼     29621     439753
+# 66   未列名甲壳动物、软体动物及其他水生无脊椎动物的产品；第3章的死动物    380000   27026144
+# 73                              未梳动物粗毛    548058    3506552
+# 74                         未梳脱脂剪羊毛，未碳化     80022     546761
+# 75       未精梳单纱，棉≥85％，125分特≤细度＜192.31分特   3497001   57921968
+# 76    未精梳单纱，棉≥85％，192.31分特≤细度＜232.56分特    107054    1946894
+# 77    未精梳单纱，棉≥85％，232.56分特≤细度＜714.29分特    255613    3896602
+# 97                                 棉短绒    973338    2792252
+# 102                                 甘草    362401    2074174
+# 103                            甘草液汁及浸膏    229120    5467779
+# 104                                甜饼干    114869     944136
+# 115                                葡萄干    355600    3747877
+# 123                             鲜李及黑刺李     47885     387971
+
+# 数值不在iqr范围内的数量信息和金额信息，求单价
+table_n = iqr_false(df_data,"交易额",1.5,3).copy()
+num = iqr_false(df_data,"交易额",1.5,3)['数量']
+money = iqr_false(df_data,"交易额",1.5,3)['交易额']
+table_n['单价'] = (money.to_numpy()/num.to_numpy()).astype('int64')
+# print(table_n[['商品名称','单价']])
+
+# 金额非iqr内商品一一核对单价
+#                                   商品名称       单价
+# 1                    不适于缫丝的下茧、茧衣、长吐、滞头       48
+# 9                             低值简易通关商品       11
+# 16                               其他干绿豆        6
+# 17                              其他干鹰嘴豆        6
+# 18                                其他废丝      124
+# 21                              其他未锻轧铅       12
+# 31                    其他苷及其盐、醚、酯和其他衍生物       46
+# 43                            华夫饼干及圣餐饼       14
+# 49                               坐标测量仪  1800223
+# 66   未列名甲壳动物、软体动物及其他水生无脊椎动物的产品；第3章的死动物       71
+# 73                              未梳动物粗毛        6
+# 74                         未梳脱脂剪羊毛，未碳化        6
+# 75       未精梳单纱，棉≥85％，125分特≤细度＜192.31分特       16
+# 76    未精梳单纱，棉≥85％，192.31分特≤细度＜232.56分特       18
+# 77    未精梳单纱，棉≥85％，232.56分特≤细度＜714.29分特       15
+# 79                             未锻轧的铝合金       14
+# 97                                 棉短绒        2
+# 102                                 甘草        5
+# 103                            甘草液汁及浸膏       23
+# 104                                甜饼干        8
+# 115                                葡萄干       10
+# 123                             鲜李及黑刺李        8
+
+# ==============核实数据完毕===============
+
