@@ -1,7 +1,7 @@
 import random
 import pandas as pd
 import pymysql
-from my_opts import *
+from func_utils import *
 # 连接数据库
 coon = pymysql.connect(
     host = 'localhost',
