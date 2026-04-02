@@ -3,7 +3,7 @@ from pyecharts import options
 from pyecharts.charts import Bar,Line,Grid,Pie
 from pyecharts.globals import ThemeType
 from pyecharts.options import *
-from data-preprocessing import *
+from hs_preprocessing import *
 bar = Bar()
 line = Line()
 bar_x_list = name_list
