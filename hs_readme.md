@@ -7,11 +7,11 @@
  
 二、文件结构
  
-- 原始数据/：对哈贸易原始交易数据
-- hs_cleaned.csv：数据清洗后标准化文件
-- hs_explore/：数据探索性分析相关文件
-- hs_purposeseen/：数据针对性分析相关文件
-- hs_visualization/：贸易分析全量图表文件
+原始数据/：对哈贸易原始交易数据
+hs_cleaned.csv：数据清洗后标准化文件
+hs_explore.py：数据探索性分析相关文件
+hs_purposeseen.py：数据针对性分析相关文件
+hs_visualization.py：贸易分析全量图表文件
  
 三、核心分析结论
  
